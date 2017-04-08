@@ -1,0 +1,187 @@
+<?php
+
+/**
+ * @file
+ * Exposes the module to different API's.
+ */
+
+use Drupal\Core\Url;
+use Drupal\Component\Utility\Html;
+
+/**
+ * Implements hook_help().
+ */
+function views_vcards_help($route_name, \Drupal\Core\Routing\RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    case 'help.page.views_vcards':
+      $path = dirname(__FILE__) . '/README.md';
+      if (file_exists($path)) {
+        $readme = file_get_contents($path);
+      }
+      if (!isset($readme)) {
+        return NULL;
+      }
+      $output = '<pre>' . Html::escape($readme) . '</pre>';
+      return $output;
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function views_vcards_theme($existing, $type, $theme, $path) {
+  return array(
+    'views_vcards_view_vcard' => array(
+      'variables' => array(
+        'items' => NULL,
+      ),
+    ),
+    'views_vcards_view_row_vcard' => array(
+      'variables' => array(
+        'first_name' => NULL,
+        'middle_name' => NULL,
+        'last_name' => NULL,
+        'full_name' => NULL,
+        'title' => NULL,
+        'email' => NULL,
+        'email2' => NULL,
+        'email3' => NULL,
+        'home_address' => NULL,
+        'home_city' => NULL,
+        'home_state' => NULL,
+        'home_zip' => NULL,
+        'home_country' => NULL,
+        'home_phone' => NULL,
+        'home_cellphone' => NULL,
+        'home_website' => NULL,
+        'work_title' => NULL,
+        'work_company' => NULL,
+        'work_address' => NULL,
+        'work_city' => NULL,
+        'work_state' => NULL,
+        'work_zip' => NULL,
+        'work_fax' => NULL,
+        'work_website' => NULL,
+      ),
+    ),
+    'views_vcards_vcard_icon' => array(
+      'variables' => array(
+        'url' => NULL,
+        'title' => NULL
+      ),
+    ),
+  );
+}
+
+/**
+ * Preprocess a vCards list.
+ */
+function views_vcards_preprocess_views_vcards_view_vcard(&$variables) {
+  $view = $variables['view'];
+  $items = $variables['rows'];
+  $style = $view->style_plugin;
+
+  $config = \Drupal::config('system.site');
+
+  // Figure out which display which has a path we're using for this feed. If
+  // there isn't one, use the global $base_url
+  $link_display_id = $view->display_handler->getLinkDisplay();
+  if ($link_display_id && $display = $view->displayHandlers->get($link_display_id)) {
+    $url = $view->getUrl(NULL, $link_display_id);
+  }
+
+  /** @var \Drupal\Core\Url $url */
+  if ($url) {
+    $url_options = array('absolute' => TRUE);
+    if (!empty($view->exposed_raw_input)) {
+      $url_options['query'] = $view->exposed_raw_input;
+    }
+
+    // Compare the link to the default home page; if it's the default home page,
+    // just use $base_url.
+    $url_string = $url->setOptions($url_options)->toString();
+    if ($url_string === Url::fromUserInput($config->get('page.front'))->toString()) {
+      $url_string = Url::fromRoute('<front>')->setAbsolute()->toString();
+    }
+
+    $variables['link'] = $url_string;
+  }
+
+  $variables['langcode'] = \Drupal::languageManager()->getCurrentLanguage()->getId();
+  $variables['items'] = $items;
+
+  // During live preview we don't want to output the header since the contents
+  // of the feed are being displayed inside a normal HTML page.
+  if (empty($variables['view']->live_preview)) {
+
+    // Only build the zip if we are not watching the preview.
+    if (count($items) > 1) {
+
+      // Make sure there always is a filename
+      $filename = !empty($view->human_name) ? $view->human_name : 'vcards' . '.zip';
+
+      // Try to load the library and check if that worked.
+      if (class_exists('ZipStream\ZipStream')) {
+        $zip = new ZipStream\ZipStream();
+        foreach ($items as $name => $item) {
+          $item = render($item);
+          $zip->addFile($name . '.vcf', $item);
+        }
+        $zip->finish();
+
+        $variables['view']->getResponse()->headers->set('Content-Type', 'application/x-zip');
+        $variables['view']->getResponse()->headers->set('Content-Disposition', 'attachment; filename=' . $filename);
+        $variables['view']->getResponse()->headers->set('Pragma', 'no-cache');
+        $variables['view']->getResponse()->headers->set('Cache-Control', 'no-cache');
+        $variables['view']->getResponse()->headers->set('Content-Transfer-Encoding', 'binary');
+      }
+      else {
+        drupal_set_message(t("The ZipStream library was not loaded"), 'error');
+      }
+    }
+    else {
+
+      $filename = !empty(key($items)) ? key($items) : 'vcards' . '.vcf';
+
+      // Only one item? Add headers for vCard and output single (first) item.
+      $variables['view']->getResponse()->headers->set('Content-Type', 'text/vcard; charset=utf-8');
+      $variables['view']->getResponse()->headers->set('Content-Disposition', 'attachment; filename=' . $filename);
+    }
+  }
+}
+
+/**
+ * Default theme function for all vCards entries.
+ *
+ * Sanitizes all items on a row.
+ */
+function views_vcards_preprocess_views_vcards_view_row_vcard(&$variables) {
+  $item = $variables['row'];
+
+  $variables['first_name'] = utf8_decode((string) \Drupal::service('renderer')->render($item->first_name));
+  $variables['middle_name'] = utf8_decode((string) \Drupal::service('renderer')->render($item->middle_name));
+  $variables['last_name'] = utf8_decode((string) \Drupal::service('renderer')->render($item->last_name));
+  $variables['full_name'] = utf8_decode((string) \Drupal::service('renderer')->render($item->full_name));
+  $variables['title'] = utf8_decode((string) \Drupal::service('renderer')->render($item->title));
+  $variables['email'] = utf8_decode((string) \Drupal::service('renderer')->render($item->email));
+  $variables['email2'] = utf8_decode((string) \Drupal::service('renderer')->render($item->email2));
+  $variables['email3'] = utf8_decode((string) \Drupal::service('renderer')->render($item->email3));
+  $variables['home_address'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_address));
+  $variables['home_city'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_city));
+  $variables['home_state'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_state));
+  $variables['home_zip'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_zip));
+  $variables['home_country'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_country));
+  $variables['home_phone'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_phone));
+  $variables['home_cellphone'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_cellphone));
+  $variables['home_website'] = utf8_decode((string) \Drupal::service('renderer')->render($item->home_website));
+  $variables['work_title'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_title));
+  $variables['work_company'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_company));
+  $variables['work_address'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_address));
+  $variables['work_city'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_city));
+  $variables['work_state'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_state));
+  $variables['work_zip'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_zip));
+  $variables['work_country'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_country));
+  $variables['work_phone'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_phone));
+  $variables['work_fax'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_fax));
+  $variables['work_website'] = utf8_decode((string) \Drupal::service('renderer')->render($item->work_website));
+}

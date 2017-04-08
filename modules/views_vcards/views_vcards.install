@@ -1,0 +1,55 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the  module.
+ */
+
+/**
+ * Implements hook_requirements().
+ */
+function views_vcards_requirements($phase) {
+  $requirements = array();
+
+  // Report Drupal version
+  if ($phase == 'runtime') {
+
+    // Ensure translations don't break during installation.
+    $t = get_t();
+    $library = libraries_detect('zipstream');
+
+
+    if ($library['installed']) {
+      if (version_compare($library['version'], VIEWS_VCARDS_ZIPSTREAM_PHP_MIN_VERSION, '>=')) {
+        $requirements['views_vcards_zipstream'] = array(
+          'title' => $t('ZipStream-PHP library for Views vCards'),
+          'severity' => REQUIREMENT_OK,
+          'value' => $library['version'],
+        );
+      }
+      else {
+        $requirements['views_vcards_zipstream'] = array(
+          'title' => $t('ZipStream-PHP library for Views vCards'),
+          'value' => $t('At least @a', array('@a' => VIEWS_VCARDS_ZIPSTREAM_PHP_MIN_VERSION)),
+          'severity' => REQUIREMENT_ERROR,
+          'description' => $t('You need to download a later version of the !zipstream library and replace the old version located in the %path directory on your server.', array(
+            '!zipstream' => l($t('ZipSteam-PHP'), $library['download url']),
+            '%path' => $library['library path']
+          )),
+        );
+      }
+    }
+    else {
+      $requirements['views_vcards_zipstream'] = array(
+        'title' => $t('ZipStream-PHP library for Views vCards'),
+        'value' => $t('At least @a', array('@a' => VIEWS_VCARDS_ZIPSTREAM_PHP_MIN_VERSION)),
+        'severity' => REQUIREMENT_ERROR,
+        'description' => $t('You need to download the !zipstream library and place it in the libraries directory on your sever.', array(
+          '!zipstream' => l($t('ZipSteam-PHP'), $library['download url']),
+        )),
+      );
+    }
+  }
+
+  return $requirements;
+}

@@ -1,0 +1,10 @@
+{
+  "name": "drupal/views_vcards",
+  "description": "Allows creation of vCards using the fields provided by the Views module.",
+  "type": "drupal-module",
+  "license": "GPL-2.0+",
+  "homepage": "https://drupal.org/project/views_vcards",
+  "require": {
+    "maennchen/zipstream-php": "0.3.*"
+  }
+}
